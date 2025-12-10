@@ -82,12 +82,47 @@ jobs:
       - name: Download models
         run: |
           echo "Downloading minimal models for CI..."
+          echo "Debug: Repository context: ${{ github.repository }}"
+          echo "Debug: Event: ${{ github.event_name }}"
+          echo "Debug: PR head repo: ${{ github.event.pull_request.head.repo.full_name }}"
+          # Check if HF_TOKEN secret is available (even if empty, this helps debug)
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "⚠️  HF_TOKEN secret is not available or is empty"
+            echo "   Repository: ${{ github.repository }}"
+            echo "   Event: ${{ github.event_name }}"
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "   Note: For PRs from forks, secrets are not available (GitHub security)"
+              echo "   To test with Gemma: Add HF_TOKEN to your fork secrets and use workflow_dispatch"
+            fi
+            echo "   Gemma model download will be gracefully skipped (workflow will continue)"
+          else
+            echo "✅ HF_TOKEN is set (length: ${#HF_TOKEN} characters)"
+            echo "Authenticating with HuggingFace..."
+            huggingface-cli login --token "$HF_TOKEN" --add-to-git-credential
+            echo "✅ HuggingFace authentication successful"
+            # Also ensure environment variable is set for hf CLI
+            export HUGGINGFACE_HUB_TOKEN="$HF_TOKEN"
+          fi
+          # Export all environment variables for make
+          export CI=true
+          export CI_MINIMAL_MODELS=true
+          export HF_HUB_ENABLE_HF_TRANSFER=1
+          export HF_HUB_DISABLE_TELEMETRY=1
+          # Pass token to make if available
+          if [ -n "$HF_TOKEN" ]; then
+            export HF_TOKEN="$HF_TOKEN"
+            export HUGGINGFACE_HUB_TOKEN="$HF_TOKEN"
+          fi
           make download-models
         env:
           CI: true
           CI_MINIMAL_MODELS: true
           HF_HUB_ENABLE_HF_TRANSFER: 1
           HF_HUB_DISABLE_TELEMETRY: 1
+          # HF_TOKEN is required for downloading gated models (e.g., embeddinggemma-300m)
+          # The hf CLI uses HUGGINGFACE_HUB_TOKEN, so we set both for compatibility
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HUGGINGFACE_HUB_TOKEN: ${{ secrets.HF_TOKEN }}
 
       - name: Start CI services
         run: |
