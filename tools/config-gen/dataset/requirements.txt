@@ -1,0 +1,9 @@
+# Data Generation Scripts Requirements
+openai>=1.0.0
+anthropic>=0.18.0
+google-generativeai>=0.3.0
+pyyaml>=6.0
+tqdm>=4.66.0
+numpy>=1.24.0
+python-dotenv>=1.0.0
+
