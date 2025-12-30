@@ -1,0 +1,30 @@
+# Basic Semantic Router Configuration Template
+# This template generates simple configurations with routing decisions
+
+decisions:
+  - name: "{decision_name}"
+    description: "{decision_description}"
+    priority: {priority}
+    rules:
+      operator: "{operator}"
+      conditions:
+        - type: "{signal_type}"
+          name: "{category_name}"
+    modelRefs:
+      - model: "{model_name}"
+        use_reasoning: {use_reasoning}
+
+model_config:
+  {model_name}:
+    reasoning_family: "{reasoning_family}"
+    preferred_endpoints:
+      - "{endpoint_name}"
+
+vllm_endpoints:
+  - name: "{endpoint_name}"
+    address: "{endpoint_address}"
+    port: {endpoint_port}
+    weight: {endpoint_weight}
+
+default_model: "{model_name}"
+

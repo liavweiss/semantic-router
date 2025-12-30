@@ -168,4 +168,9 @@ FactCHD_dataset/
 **/lora_*_model_rust/
 *.safetensors
 
+# Config generation training models
+tools/config-gen/training/base_model/
+tools/config-gen/training/base_model.tar.gz
+tools/config-gen/training/base_model.zip
+
 .vllm-sr/

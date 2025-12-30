@@ -1,0 +1,32 @@
+{
+  "total": 2112,
+  "by_source": {
+    "real": 39,
+    "ai": 1700,
+    "template": 200,
+    "augmented": 95,
+    "section": 78
+  },
+  "by_deployment_context": {
+    "unknown": 147,
+    "quickstart": 278,
+    "routing-strategies": 228,
+    "production-stack": 219,
+    "dynamic-config": 217,
+    "istio": 259,
+    "aibrix": 225,
+    "ai-gateway": 283,
+    "kubernetes": 256
+  },
+  "by_complexity": {
+    "low": 569,
+    "high": 583,
+    "medium": 587,
+    "unknown": 373
+  },
+  "splits": {
+    "train": 1689,
+    "val": 211,
+    "test": 212
+  }
+}
