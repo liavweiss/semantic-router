@@ -266,6 +266,9 @@ type Classifier struct {
 	// Preference classifier for route matching via external LLM
 	preferenceClassifier *PreferenceClassifier
 
+	// Complexity classifier
+	complexityClassifier *ComplexityClassifier
+
 	Config           *config.RouterConfig
 	CategoryMapping  *CategoryMapping
 	PIIMapping       *PIIMapping
@@ -374,6 +377,14 @@ func initModels(classifier *Classifier) (*Classifier, error) {
 		if err := classifier.initializePreferenceClassifier(); err != nil {
 			logging.Warnf("Failed to initialize preference classifier: %v", err)
 			// Non-fatal - continue without preference classification
+		}
+	}
+
+	// Initialize complexity classifier
+	if len(classifier.Config.ComplexityRules) > 0 {
+		if err := classifier.initializeComplexityClassifier(); err != nil {
+			logging.Warnf("Failed to initialize complexity classifier: %v", err)
+			// Non-fatal - continue without complexity classification
 		}
 	}
 
@@ -661,6 +672,7 @@ type SignalResults struct {
 	MatchedFactCheckRules    []string // "needs_fact_check" or "no_fact_check_needed"
 	MatchedUserFeedbackRules []string // "satisfied", "need_clarification", "wrong_answer", "want_different"
 	MatchedPreferenceRules   []string // Route preference names matched via external LLM
+	MatchedComplexityRules   []string // "simple", "medium", "complex"
 }
 
 // analyzeRuleCombination recursively analyzes rule combinations to find used signals
@@ -863,6 +875,37 @@ func (c *Classifier) EvaluateAllSignals(text string) *SignalResults {
 		logging.Infof("[Signal Computation] Preference signal not used in any decision, skipping evaluation")
 	}
 
+	// Evaluate complexity rules in parallel (only if used in decisions)
+	// Only evaluate if complexity_rules are configured and complexity classifier is enabled
+	if isSignalTypeUsed(usedSignals, config.SignalTypeComplexity) && len(c.Config.ComplexityRules) > 0 && c.IsComplexityEnabled() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			complexityResult, err := c.complexityClassifier.Classify(text)
+			elapsed := time.Since(start)
+			logging.Infof("[Signal Computation] Complexity signal evaluation completed in %v", elapsed)
+			if err != nil {
+				logging.Errorf("complexity rule evaluation failed: %v", err)
+			} else if complexityResult != nil {
+				// Use the complexity type directly as the signal name
+				complexityType := complexityResult.ComplexityType
+
+				// Check if this complexity type is defined in complexity_rules
+				for _, rule := range c.Config.ComplexityRules {
+					if rule.Name == complexityType {
+						mu.Lock()
+						results.MatchedComplexityRules = append(results.MatchedComplexityRules, rule.Name)
+						mu.Unlock()
+						break
+					}
+				}
+			}
+		}()
+	} else if !isSignalTypeUsed(usedSignals, config.SignalTypeComplexity) {
+		logging.Infof("[Signal Computation] Complexity signal not used in any decision, skipping evaluation")
+	}
+
 	// Wait for all signal evaluations to complete
 	wg.Wait()
 
@@ -877,6 +920,10 @@ func (c *Classifier) EvaluateDecisionWithEngine(signals *SignalResults) (*decisi
 		return nil, fmt.Errorf("no decisions configured")
 	}
 
+	logging.Infof("Signal evaluation results: keyword=%v, embedding=%v, domain=%v, fact_check=%v, user_feedback=%v, preference=%v, complexity=%v",
+		signals.MatchedKeywordRules, signals.MatchedEmbeddingRules, signals.MatchedDomainRules,
+		signals.MatchedFactCheckRules, signals.MatchedUserFeedbackRules, signals.MatchedPreferenceRules,
+		signals.MatchedComplexityRules)
 	// Create decision engine
 	engine := decision.NewDecisionEngine(
 		c.Config.KeywordRules,
@@ -894,6 +941,7 @@ func (c *Classifier) EvaluateDecisionWithEngine(signals *SignalResults) (*decisi
 		FactCheckRules:    signals.MatchedFactCheckRules,
 		UserFeedbackRules: signals.MatchedUserFeedbackRules,
 		PreferenceRules:   signals.MatchedPreferenceRules,
+		ComplexityRules:   signals.MatchedComplexityRules,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("decision evaluation failed: %w", err)
@@ -1604,6 +1652,11 @@ func (c *Classifier) initializeFeedbackDetector() error {
 	return nil
 }
 
+// IsComplexityEnabled checks if complexity classification is enabled
+func (c *Classifier) IsComplexityEnabled() bool {
+	return len(c.Config.ComplexityRules) > 0 && c.complexityClassifier != nil
+}
+
 // IsPreferenceClassifierEnabled checks if preference classification is enabled and properly configured
 func (c *Classifier) IsPreferenceClassifierEnabled() bool {
 	// Need preference rules configured and external model with role="preference"
@@ -1635,6 +1688,22 @@ func (c *Classifier) initializePreferenceClassifier() error {
 
 	c.preferenceClassifier = classifier
 	logging.Infof("Preference classifier initialized successfully with %d routes", len(c.Config.PreferenceRules))
+	return nil
+}
+
+// initializeComplexityClassifier initializes the complexity classifier
+func (c *Classifier) initializeComplexityClassifier() error {
+	if len(c.Config.ComplexityRules) == 0 {
+		return nil
+	}
+
+	classifier, err := NewComplexityClassifier(c.Config.ComplexityRules)
+	if err != nil {
+		return fmt.Errorf("failed to create complexity classifier: %w", err)
+	}
+
+	c.complexityClassifier = classifier
+	logging.Infof("Complexity classifier initialized")
 	return nil
 }
 
@@ -1764,4 +1833,9 @@ func (c *Classifier) GetHallucinationDetector() *HallucinationDetector {
 // GetFeedbackDetector returns the feedback detector instance
 func (c *Classifier) GetFeedbackDetector() *FeedbackDetector {
 	return c.feedbackDetector
+}
+
+// GetComplexityClassifier returns the complexity classifier instance
+func (c *Classifier) GetComplexityClassifier() *ComplexityClassifier {
+	return c.complexityClassifier
 }

@@ -62,6 +62,7 @@ type SignalMatches struct {
 	FactCheckRules    []string // "needs_fact_check" or "no_fact_check_needed"
 	UserFeedbackRules []string // "need_clarification", "satisfied", "want_different", "wrong_answer"
 	PreferenceRules   []string // Route preference names matched via external LLM
+	ComplexityRules   []string // "simple", "medium", "complex"
 }
 
 // DecisionResult represents the result of decision evaluation
@@ -163,6 +164,8 @@ func (e *DecisionEngine) evaluateRuleCombinationWithSignals(
 			conditionMatched = slices.Contains(signals.UserFeedbackRules, condition.Name)
 		case "preference":
 			conditionMatched = slices.Contains(signals.PreferenceRules, condition.Name)
+		case "complexity":
+			conditionMatched = slices.Contains(signals.ComplexityRules, condition.Name)
 		default:
 			continue
 		}
