@@ -22,6 +22,16 @@ var BaselineRouterContract = []string{
 	"chat-completions-progressive-stress",
 }
 
+// DashboardContract is the canonical E2E contract for the dashboard API surface.
+var DashboardContract = []string{
+	"dashboard-health",
+	"dashboard-status",
+	"dashboard-config-read",
+	"dashboard-deploy-preview",
+	"dashboard-config-versions",
+	"dashboard-deploy-invalid-yaml",
+}
+
 // Combine preserves order while removing duplicate testcase names.
 func Combine(groups ...[]string) []string {
 	size := 0
